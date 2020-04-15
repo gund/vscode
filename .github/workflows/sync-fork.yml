@@ -14,6 +14,7 @@ jobs:
       - uses: TG908/fork-sync@v1.1
         with:
           github_token: ${{ secrets.GH_TOKEN }}
+          owner: vscode
           base: master
-          head: vscode:master
+          head: master
           merge_method: rebase
