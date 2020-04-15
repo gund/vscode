@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Node.js@11 environment
+        uses: actions/setup-node@v1.4.1
+        with:
+          node-version: 11
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v1
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install via Yarn
+        run: yarn install
+
+      - name: Build:Linux:x64
+        run: yarn gulp vscode-linux-x64-min
+
+      - name: Upload:Linux:x64
+        uses: actions/upload-artifact@v1
+        with:
+          name: vscode-linux-x64
+          path: 'VSCode-linux-x64/code-oss'
+
+      - name: Build:Windows:x64
+        run: yarn gulp vscode-win32-x64-min
+
+      - name: Upload:Windows:x64
+        uses: actions/upload-artifact@v1
+        with:
+          name: vscode-win-x64
+          path: 'VSCode-win32-x64/Code - OSS.exe'
+
+      - name: Build:MacOS:x64
+        run: yarn gulp vscode-darwin-min
+
+      - name: Upload:MacOS:x64
+        uses: actions/upload-artifact@v1
+        with:
+          name: vscode-macos-x64
+          path: 'VSCode-darwin/code-oss'
