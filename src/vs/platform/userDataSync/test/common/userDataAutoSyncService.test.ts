@@ -53,12 +53,11 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change multiple times
-		for (let counter = 0; counter < 3; counter++) {
+		for (let counter = 0; counter < 2; counter++) {
 			await testObject.triggerAutoSync([SyncResource.Settings]);
 		}
 
 		assert.deepEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
 		]);
@@ -84,7 +83,7 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepEqual(target.requests, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
 	});
 
-	test('test auto sync with non sync resource change triggers sync for every trigger', async () => {
+	test('test auto sync with non sync resource change does not trigger continuous syncs', async () => {
 		// Setup the client
 		const target = new UserDataSyncTestServer();
 		const client = disposableStore.add(new UserDataSyncClient(target));
@@ -98,15 +97,12 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus multiple times
-		for (let counter = 0; counter < 3; counter++) {
+		for (let counter = 0; counter < 2; counter++) {
 			await testObject.triggerAutoSync(['windowFocus']);
 		}
 
-		assert.deepEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
-		]);
+		// Make sure only one request is made
+		assert.deepEqual(target.requests, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
 	});
 
 

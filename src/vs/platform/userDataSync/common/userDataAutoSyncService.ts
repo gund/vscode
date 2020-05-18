@@ -6,7 +6,7 @@
 import { timeout, Delayer } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES } from 'vs/platform/userDataSync/common/userDataSync';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -21,6 +21,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 	private enabled: boolean = this.getDefaultEnablementValue();
 	private successiveFailures: number = 0;
+	private lastSyncTriggerTime: number | undefined = undefined;
 	private readonly syncDelayer: Delayer<void>;
 
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
@@ -69,6 +70,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async sync(loop: boolean, auto: boolean): Promise<void> {
 		if (this.enabled) {
 			try {
+				this.lastSyncTriggerTime = new Date().getTime();
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {
@@ -122,6 +124,17 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			return this.syncDelayer.cancel();
 		}
 
+		/*
+		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,)
+		then limit sync to once per 10s
+		*/
+		const isNotTriggeredBySyncResource = ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
+		if (isNotTriggeredBySyncResource && this.lastSyncTriggerTime
+			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 10) {
+			this.logService.debug('Auto Sync Skipped: Limited to once per 10 seconds.');
+			return;
+		}
+
 		this.sources.push(...sources);
 		return this.syncDelayer.trigger(() => {
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
@@ -130,7 +143,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this.logService.info('Auto Sync: Triggered.');
 			return this.sync(false, true);
 		}, this.successiveFailures
-			? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of failures times number of seconds max till 1 minute */
+			? 1000 * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
 			: 0); /* Do not delay if there are no failures */
 
 	}
